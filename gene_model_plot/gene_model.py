@@ -72,11 +72,10 @@ class GeneModel:
         vcf_variants = {
             os.path.basename(k).split(".")[0]: v for k, v in vcf_variants.items()
         }
-
         return vcf_variants
 
     def plot_gene_model(
-        self, features, strand, transcript_name, chromosome, vcf_variants=None
+        self, features, strand, transcript_name, chromosome, vcf_variants=None, highlight_genomic_pos=None, highlight_relative_pos=None
     ):
         num_vcf_files = len(vcf_variants) if vcf_variants else 0
         fig, ax = plt.subplots(
@@ -237,6 +236,24 @@ class GeneModel:
         yticklabels = ["Start/Stop Codons", "Exons", "UTRs"] + [
             f"{v}" for v in vcf_variants.keys()
         ]
+
+        if highlight_genomic_pos:
+            ax.axvline(x=highlight_genomic_pos, color="red", linestyle="--", linewidth=1, zorder=1, alpha=0.5)
+        
+        if highlight_relative_pos is not None:
+            # calculate the genomic position of the relative position
+            cumulative_length = 0
+            for exon in features["exons"]:
+                exon_length = exon[1] - exon[0] + 1
+                if cumulative_length <= highlight_relative_pos < cumulative_length + exon_length:
+                    if strand == "+":
+                        genomic_pos = exon[0] + (highlight_relative_pos - cumulative_length)
+                    else:
+                        genomic_pos = exon[1] - (highlight_relative_pos - cumulative_length)
+                    ax.axvline(x=genomic_pos, color="red", linestyle="--", linewidth=1, zorder=0, alpha=0.5)
+                    break
+                cumulative_length += exon_length
+
         ax.set_yticks(yticks)
         ax.set_yticklabels(yticklabels)
         ax.set_ylim(0.5, base_y + num_vcf_files + 0.5)
@@ -258,8 +275,9 @@ class GeneModel:
 
         return fig, ax
 
+
     # User-facing function to plot the gene model
-    def plot(self, gene_id, return_base64=False, return_png=False):
+    def plot(self, gene_id, return_base64=False, return_png=False, highlight_genomic_pos=None, highlight_relative_pos=None):
         gene = self.db[gene_id]
         features, strand = self.extract_features(gene)
         vcf_variants = self.extract_variants()
@@ -269,6 +287,8 @@ class GeneModel:
             self.extract_transcript_name(gene),
             self.extract_chromosome(gene),
             vcf_variants=vcf_variants,
+            highlight_genomic_pos=highlight_genomic_pos,
+            highlight_relative_pos=highlight_relative_pos
         )
 
         if return_base64:
